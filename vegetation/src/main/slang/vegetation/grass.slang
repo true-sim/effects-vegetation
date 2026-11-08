@@ -39,6 +39,14 @@ public struct VegetationGrass : IMaterial
         color *= 1 + v * (2 * unit(bladeHash(seed + 1)) - 1);
         color = lerp(color, color * float3(1.25, 1.05, 0.6), v * unit(bladeHash(seed + 2))); // towards yellow
         s.albedo = saturate(color);
+        if (p.detailColors > 0)
+        {
+            // A debug view of the template's detail: full detail green, then yellow, orange and red as segments fall
+            uint segments = uint(round(saturate(in.color.a) * 255));
+            float3 levels[5] = { float3(0.5, 0.0, 0.5), float3(0.6, 0.02, 0.0), float3(0.6, 0.2, 0.0),
+                float3(0.5, 0.5, 0.0), float3(0.05, 0.5, 0.05) };
+            s.albedo = lerp(s.albedo, levels[min(segments, 4u)], p.detailColors);
+        }
         s.roughness = p.roughness;
         s.occlusion = lerp(0.35, 1.0, along); // the sward shades its own roots
         return s;

@@ -8,7 +8,7 @@ import com.truesim.scene.meshbuild.MeshBuilder;
 import java.util.Arrays;
 
 /** Placeholder plants for tests, as a showcase's models would be: submesh 0 the bark, 1 the foliage. */
-final class TreeMeshes {
+public final class TreeMeshes {
 
     private static final int SIDES = 10;
 
@@ -16,7 +16,7 @@ final class TreeMeshes {
     }
 
     /** A spruce {@code height} tall: a trunk to 0.8 of it and four cones of foliage up to the top, {@code radius} wide. */
-    static MeshData spruce(double height, double radius) {
+    public static MeshData spruce(double height, double radius) {
         float[] positions = new float[0];
         int[] trunk = new int[0];
         int[] crown = new int[0];

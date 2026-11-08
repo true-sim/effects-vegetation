@@ -159,7 +159,7 @@ final class Meadow implements AutoCloseable {
                     continue;
                 }
                 int id = nextId++;
-                double angle = Math.PI / 2 * Math.floorMod(GrassPatches.hash(i * 73856093 ^ j * 19349663), 4);
+                double angle = Math.PI / 2 * GrassPatches.quarterTurns(i, j);
                 scene.set(id, patchMesh, grassMaterial, px, ground.applyAsDouble(px, pz), pz, 0,
                     (float) Math.sin(angle / 2), 0, (float) Math.cos(angle / 2), 1, 1, 1);
                 patchIds.add(id);

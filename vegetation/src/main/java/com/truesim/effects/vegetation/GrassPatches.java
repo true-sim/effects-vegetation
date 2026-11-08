@@ -207,6 +207,14 @@ public final class GrassPatches {
         return new Sphere(x, 0, z, r);
     }
 
+    /**
+     * The quarter turns (0 to 3) the patch of cell ({@code i}, {@code j}) is turned by about the vertical: the
+     * template's slots differ patch to patch (blades themselves are made from the world).
+     */
+    public static int quarterTurns(int i, int j) {
+        return Math.floorMod(hash(i * 73856093 ^ j * 19349663), 4);
+    }
+
     static int hash(int v) {
         int state = v * 747796405 + 0xAC564B05;
         int word = ((state >>> ((state >>> 28) + 4)) ^ state) * 277803737;

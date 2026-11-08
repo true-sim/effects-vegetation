@@ -38,4 +38,5 @@ public struct VegetationGrassParameters
     public float2 boundsMin = float2(0, 0);                        // the field's world x and z: blades outside go
     public float2 boundsMax = float2(0, 0);                        // (min = max: unbounded)
     public float edge = 1;                                         // metres over which blades thin out at the bounds
+    [Range(0, 1)] public float detailColors = 0;                  // 1: blades colored by their detail level (debug)
 };
