@@ -18,9 +18,9 @@ permissions:
   packages: read # build-logic plugins and libraries from GitHub Packages
 
 env:
-  # The engine's per-material displacement (true-sim/engine#454) is not released yet: CI builds it from its branch as an
-  # included build (ENGINE_REF); once a release has it, drop ENGINE_REF and the checkout steps and depend on that.
-  ENGINE_REF: material-displacement
+  # An unreleased engine branch to build as an included build (empty: the published engine the build names). The
+  # engine's per-material displacement is released in 0.197.0.
+  ENGINE_REF: ''
   SHARD_MODULES: effects-vegetation
   SHARDS: 4 # keep in step with the matrix below
   GITHUB_ACTOR: ${{ github.actor }}
