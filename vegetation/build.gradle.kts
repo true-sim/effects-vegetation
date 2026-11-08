@@ -10,6 +10,7 @@ description = "Vegetation for true-sim: grass generated on the GPU from a parame
 dependencies {
     api("com.truesim.engine:engine-scene:0.195.0") // the renderer's displacement and geometry hooks, the scene bridge
     testImplementation(testFixtures("com.truesim.engine:engine-render:0.195.0")) // the headless renderer
+    testImplementation("com.truesim.scene:scene-meshbuild:0.70.0") // placeholder trees and the test ground
 }
 
 // The material records, the hooks' records and the push layouts of src/main/slang, as Java; the listing
@@ -27,4 +28,5 @@ tasks.test {
         extensions.configure<JacocoTaskExtension> { isEnabled = false }
     }
     providers.gradleProperty("films").orNull?.let { systemProperty("truesim.films", it) }
+    providers.gradleProperty("testShots").orNull?.let { systemProperty("truesim.testShots", it) }
 }
