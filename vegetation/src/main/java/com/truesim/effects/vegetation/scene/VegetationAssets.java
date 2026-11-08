@@ -129,6 +129,7 @@ public final class VegetationAssets {
     }
 
     /** Every value of {@code from} into {@code to}, named with {@code prefix}: textures, vectors, integers, floats. */
+    @AllowAllocation("made once per recipe, on a loader")
     private static void copy(MaterialData.Values from, MaterialData.ValuesBuilder<?> to, String prefix) {
         for (String name : from.names()) {
             String named = prefix + name;

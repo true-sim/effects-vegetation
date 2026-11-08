@@ -7,6 +7,7 @@ import com.truesim.common.state.ChangeClock;
 import com.truesim.effects.vegetation.GrassPatch;
 import com.truesim.effects.vegetation.GrassPatches;
 import com.truesim.effects.vegetation.VegetationGround;
+import com.truesim.effects.vegetation.scene.PlantPlacement;
 import com.truesim.effects.vegetation.VegetationSettings;
 import com.truesim.engine.render.materials.DiffuseTransmissionParameters;
 import com.truesim.engine.settings.EngineSettings;
@@ -237,6 +238,114 @@ class VegetationSyncTest {
         assets.release(bark);
         assets.release(leaves);
         sync.close();
+    }
+
+    @Test
+    void meadowFlowersMixBySpeciesWithinTheirRadiusOfTheViewer() throws InterruptedException {
+        // Two species over one meadow, each its own density (spacing), in the scene within 15 m of the viewer only
+        VegetationSync sync = sync();
+        long node = scene.create();
+        scene.update();
+        AssetRef<ModelData> gentian = AssetRef.generated(RenderAssets.MODEL, TREES, new TreeModel(3), 0);
+        AssetRef<ModelData> arnica = AssetRef.generated(RenderAssets.MODEL, TREES, new TreeModel(4), 0);
+        var sway = MaterialData.builder("vegetationPlant").set("height", 0.3f).build().values();
+        scene.components().set(node, PlantScatter.TYPE, new PlantScatter(gentian, 60, 60, 2, 1, 1, 40, -10, 10, 1,
+            sway, 15));
+        long other = scene.create();
+        scene.update();
+        scene.components().set(other, PlantScatter.TYPE, new PlantScatter(arnica, 60, 60, 4, 1, 1, 40, -10, 10, 2,
+            sway, 15));
+        await(() -> {
+            sync.update(0, 1.7, 0);
+            return sync.plants() > 0 && scatteredWithin(15, 0, 0);
+        });
+        for (int i = 0; i < 20; i++) {
+            sync.update(0, 1.7, 0); // the budget lets the rings fill over frames
+        }
+        int near = sync.plants();
+        // pi 15^2 / 2^2 + pi 15^2 / 4^2: about 177 + 44
+        assertThat(near).isBetween(170, 270);
+        assertThat(scatteredWithin(15 + 2, 0, 0)).as("none past the radius").isTrue();
+        // The viewer walks 40 m east: the plants follow it
+        for (int i = 0; i < 20; i++) {
+            sync.update(40, 1.7, 0);
+        }
+        assertThat(scatteredWithin(15 + 2, 40, 0)).isTrue();
+        assertThat(sync.plants()).isBetween(170, 270);
+        sync.close();
+    }
+
+    /** Whether every plant root (a scatter container's child) lies within {@code r} of (x, z). */
+    private boolean scatteredWithin(double r, double x, double z) {
+        scene.update();
+        var store = scene.components().store(Renderable.TYPE);
+        for (int i = 0; i < store.size(); i++) {
+            var t = scene.world(store.node(i)).translation();
+            if (Math.hypot(t.x() - x, t.z() - z) > r) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Test
+    void placementTakesAnEcologysDensityFieldsOrInstances() {
+        PlantScatter gentian = new PlantScatter(AssetRef.generated(RenderAssets.MODEL, TREES, new TreeModel(5), 0),
+            50, 50, 4, 1, 1, 20, 0, 100, 3, MaterialData.builder("vegetationPlant").build().values());
+        PlantScatter other = new PlantScatter(AssetRef.generated(RenderAssets.MODEL, TREES, new TreeModel(6), 0),
+            50, 50, 4, 1, 1, 20, 0, 100, 4, MaterialData.builder("vegetationPlant").build().values());
+        VegetationGround level = (x, z) -> 10;
+        // A field for one species: it grows only east; the other keeps its rules
+        PlantPlacer fields = PlantPlacer.densityField(s -> s == gentian ? (x, z) -> x > 0 ? 1 : 0 : null);
+        assertThat(fields.place(gentian, 0, 0, level)).isNotEmpty().allMatch(p -> p.x() > -1);
+        assertThat(fields.place(other, 0, 0, level)).hasSize(625);
+        // An instance list for one species, as given
+        List<PlantPlacement.Plant> given = List.of(new PlantPlacement.Plant(3, 10, 4, 0.5, 1.2));
+        PlantPlacer instances = PlantPlacer.instances(s -> s == gentian ? given : null);
+        assertThat(instances.place(gentian, 0, 0, level)).isEqualTo(given);
+        assertThat(instances.place(other, 0, 0, level)).hasSize(625);
+        assertThat(PlantPlacer.RULES.place(other, 0, 0, level)).isEqualTo(PlantPlacement.place(other, 0, 0, level));
+    }
+
+    @Test
+    void aSyncPlacesAnEcologysInstances() throws InterruptedException {
+        VegetationSync sync = sync();
+        List<PlantPlacement.Plant> given = List.of(new PlantPlacement.Plant(3, 0, 4, 0.5, 1.2),
+            new PlantPlacement.Plant(-7, 0, 1, 1.5, 0.8));
+        sync.placer(PlantPlacer.instances(s -> given));
+        long node = scene.create();
+        scene.update();
+        scene.components().set(node, PlantScatter.TYPE, new PlantScatter(AssetRef.generated(RenderAssets.MODEL,
+            TREES, new TreeModel(7), 0), 50, 50, 4, 1, 1, 20, 0, 100, 3,
+            MaterialData.builder("vegetationPlant").build().values()));
+        await(() -> {
+            sync.update(0, 2, 0);
+            return sync.plants() > 0;
+        });
+        assertThat(sync.plants()).isEqualTo(2);
+        // The scatter goes: its plants with it
+        scene.components().remove(node, PlantScatter.TYPE);
+        sync.update(0, 2, 0);
+        assertThat(sync.plants()).isZero();
+        assertThat(cells()).isEmpty();
+        sync.close();
+    }
+
+    @Test
+    void aFieldChangedIsPatchedAgain() {
+        VegetationSync sync = sync();
+        long node = field(0, 0, 100, 100);
+        sync.update(0, 1.7, 0);
+        var before = scene.components().store(Renderable.TYPE).value(0).materials();
+        scene.components().set(node, GrassField.TYPE, new GrassField(100, 100,
+            MaterialData.builder("vegetationGrass").set("height", 0.9f).build().values(), 0, false));
+        sync.update(0, 1.7, 0);
+        Renderable r = scene.components().store(Renderable.TYPE).value(0);
+        assertThat(r.materials()).isNotEqualTo(before);
+        assertThat(r.castsShadows()).isFalse();
+        assertThat(sync.patches()).isPositive();
+        sync.close();
+        assertThat(sync.patches()).isZero();
     }
 
     @Test

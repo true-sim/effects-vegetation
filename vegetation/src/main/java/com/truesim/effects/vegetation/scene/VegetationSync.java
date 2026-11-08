@@ -1,5 +1,6 @@
 package com.truesim.effects.vegetation.scene;
 
+import com.truesim.common.math.Maths;
 import com.truesim.annotations.AllowAllocation;
 import com.truesim.annotations.AllowImpure;
 import com.truesim.common.math.Transform;
@@ -48,6 +49,7 @@ public final class VegetationSync implements AutoCloseable {
     private final AssetCache assets;
     private final EngineSettings settings;
     private VegetationGround ground = VegetationGround.FLAT;
+    private PlantPlacer placer = PlantPlacer.RULES;
     private final Map<Long, Field> fields = new HashMap<>();
     private final Map<Long, Scatter> scatters = new HashMap<>();
     private long fieldsSeen = -1;
@@ -74,6 +76,11 @@ public final class VegetationSync implements AutoCloseable {
         boolean placed;
         final List<AssetRef<MaterialData>> sources = new ArrayList<>();
         int plants;
+        ModelData model;
+        Map<AssetRef<MaterialData>, AssetRef<MaterialData>> materials;
+        List<PlantPlacement.Plant> placements;
+        final Map<Integer, Long> spawned = new HashMap<>(); // in the scene: placement index to its root node
+        long viewerCell = Long.MIN_VALUE;
     }
 
     /** The vegetation of {@code scene}, its assets through {@code assets}, tuned by {@code settings}. */
@@ -86,6 +93,15 @@ public final class VegetationSync implements AutoCloseable {
     /** The ground fields and scatters stand on (patches at their middles' height, plants where they stand). */
     public VegetationSync ground(VegetationGround newGround) {
         this.ground = Objects.requireNonNull(newGround, "ground");
+        return this;
+    }
+
+    /**
+     * Where scatters' plants stand from now on (scatters placed before keep theirs): their own rules by default, or an
+     * ecology's per-species density fields or instances.
+     */
+    public VegetationSync placer(PlantPlacer newPlacer) {
+        this.placer = Objects.requireNonNull(newPlacer, "placer");
         return this;
     }
 
@@ -130,6 +146,9 @@ public final class VegetationSync implements AutoCloseable {
         for (Scatter scatter : scatters.values()) {
             if (!scatter.placed) {
                 tryPlace(scatter);
+            }
+            if (scatter.placements != null && scatter.component.radius() > 0) {
+                followPlants(scatter, x, z);
             }
         }
     }
@@ -209,7 +228,7 @@ public final class VegetationSync implements AutoCloseable {
             Map.Entry<Long, Long> e = it.next();
             int i = (int) (e.getKey() >> 32);
             int j = (int) (long) e.getKey();
-            if (i < i0 || i > i1 || j < j0 || j > j1 || Math.hypot((i + 0.5) * size - x, (j + 0.5) * size - z) > reach) {
+            if (i < i0 || i > i1 || j < j0 || j > j1 || Maths.hypot((i + 0.5) * size - x, (j + 0.5) * size - z) > reach) {
                 scene.remove(e.getValue());
                 it.remove();
             }
@@ -222,7 +241,7 @@ public final class VegetationSync implements AutoCloseable {
                 double px = (i + 0.5) * size;
                 double pz = (j + 0.5) * size;
                 long k = key(i, j);
-                if (Math.hypot(px - x, pz - z) > reach || f.patches.containsKey(k)) {
+                if (Maths.hypot(px - x, pz - z) > reach || f.patches.containsKey(k)) {
                     continue;
                 }
                 if (patchesAdded >= budget) {
@@ -231,7 +250,7 @@ public final class VegetationSync implements AutoCloseable {
                 }
                 long node = scene.create(f.container);
                 double angle = Math.PI / 2 * GrassPatches.quarterTurns(i, j);
-                scene.setLocal(node, px, ground.height(px, pz), pz, 0, Math.sin(angle / 2), 0, Math.cos(angle / 2),
+                scene.setLocal(node, px, ground.height(px, pz), pz, 0, Maths.sin(angle / 2), 0, Maths.cos(angle / 2),
                     1, 1, 1);
                 scene.components().set(node, Renderable.TYPE, Renderable.of(f.mesh, List.of(f.material))
                     .withCastsShadows(c.castsShadows()));
@@ -324,25 +343,73 @@ public final class VegetationSync implements AutoCloseable {
                 settings.get(VegetationSettings.MAX_WIND))));
         }
         double[] origin = containerOrigin.get(s);
-        List<PlantPlacement.Plant> plants = PlantPlacement.place(s.component, origin[0], origin[1], ground);
-        for (PlantPlacement.Plant p : plants) {
-            long root = scene.create(s.container);
-            scene.setLocal(root, p.x(), p.y(), p.z(), 0, Math.sin(p.yaw() / 2), 0, Math.cos(p.yaw() / 2), p.scale(),
-                p.scale(), p.scale());
-            for (long node : model.spawn(scene, root)) {
-                Renderable r = scene.components().get(node, Renderable.TYPE);
-                if (r == null) {
-                    continue;
-                }
-                List<AssetRef<MaterialData>> mapped = new ArrayList<>(r.materials().size());
-                for (AssetRef<MaterialData> m : r.materials()) {
-                    mapped.add(plantMaterials.getOrDefault(m, m));
-                }
-                Renderable.setMaterials(scene, node, mapped);
+        s.model = model;
+        s.materials = plantMaterials;
+        s.placements = placer.place(s.component, origin[0], origin[1], ground);
+        if (s.component.radius() == 0) {
+            for (int i = 0; i < s.placements.size(); i++) {
+                spawn(s, i);
             }
         }
-        s.plants = plants.size();
         s.placed = true;
+    }
+
+    /** Plant {@code i} of {@code s} in the scene, its materials made plants'. */
+    @AllowAllocation("placing plants, as they come into the scene")
+    private void spawn(Scatter s, int i) {
+        PlantPlacement.Plant p = s.placements.get(i);
+        long root = scene.create(s.container);
+        scene.setLocal(root, p.x(), p.y(), p.z(), 0, Maths.sin(p.yaw() / 2), 0, Maths.cos(p.yaw() / 2), p.scale(),
+            p.scale(), p.scale());
+        for (long node : s.model.spawn(scene, root)) {
+            Renderable r = scene.components().get(node, Renderable.TYPE);
+            if (r == null) {
+                continue;
+            }
+            List<AssetRef<MaterialData>> mapped = new ArrayList<>(r.materials().size());
+            for (AssetRef<MaterialData> m : r.materials()) {
+                mapped.add(s.materials.getOrDefault(m, m));
+            }
+            Renderable.setMaterials(scene, node, mapped);
+        }
+        s.spawned.put(i, root);
+        s.plants++;
+    }
+
+    /** A scatter with a radius: its plants within it of the viewer, those leaving removed, within the budget. */
+    @AllowAllocation("when the viewer crosses into another cell of the scatter, or the ring is still filling")
+    private void followPlants(Scatter s, double x, double z) {
+        double radius = s.component.radius();
+        double step = Math.max(1, radius / 8);
+        long cell = key((int) Math.floor(x / step), (int) Math.floor(z / step));
+        if (cell == s.viewerCell) {
+            return;
+        }
+        for (Iterator<Map.Entry<Integer, Long>> it = s.spawned.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, Long> e = it.next();
+            PlantPlacement.Plant p = s.placements.get(e.getKey());
+            if (Maths.hypot(p.x() - x, p.z() - z) > radius + step) {
+                scene.remove(e.getValue());
+                s.plants--;
+                it.remove();
+            }
+        }
+        int budget = settings.get(VegetationSettings.PLANT_BUDGET);
+        int added = 0;
+        boolean complete = true;
+        for (int i = 0; i < s.placements.size(); i++) {
+            PlantPlacement.Plant p = s.placements.get(i);
+            if (s.spawned.containsKey(i) || Maths.hypot(p.x() - x, p.z() - z) > radius) {
+                continue;
+            }
+            if (added >= budget) {
+                complete = false;
+                break;
+            }
+            spawn(s, i);
+            added++;
+        }
+        s.viewerCell = complete ? cell : Long.MIN_VALUE;
     }
 
     /** Takes the vegetation out of the scene and lets go of what it holds. */

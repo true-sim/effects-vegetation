@@ -43,9 +43,11 @@ public struct VegetationGrass : IMaterial
         {
             // A debug view of the template's detail: full detail green, then yellow, orange and red as segments fall
             uint segments = uint(round(saturate(in.color.a) * 255));
-            float3 levels[5] = { float3(0.5, 0.0, 0.5), float3(0.6, 0.02, 0.0), float3(0.6, 0.2, 0.0),
-                float3(0.5, 0.5, 0.0), float3(0.05, 0.5, 0.05) };
-            s.albedo = lerp(s.albedo, levels[min(segments, 4u)], p.detailColors);
+            float3 levels[5] = { float3(1, 0, 1), float3(1, 0.02, 0.01), float3(1, 0.35, 0.0), float3(0.9, 0.85, 0.0),
+                float3(0.05, 0.8, 0.1) };
+            float3 level = levels[min(segments, 4u)];
+            s.albedo = lerp(s.albedo, level, p.detailColors);
+            s.emissive = level * (0.6 * p.detailColors); // seen in shade too
         }
         s.roughness = p.roughness;
         s.occlusion = lerp(0.35, 1.0, along); // the sward shades its own roots

@@ -1,5 +1,6 @@
 package com.truesim.effects.vegetation;
 
+import com.truesim.common.math.Maths;
 import com.truesim.annotations.AllowAllocation;
 import com.truesim.scene.assets.AssetRef;
 import com.truesim.scene.assets.Generator;
@@ -189,7 +190,7 @@ public final class GrassPatches {
                         minZ = Math.min(minZ, rootZ[b]);
                         maxZ = Math.max(maxZ, rootZ[b]);
                     }
-                    double radius = Math.max(1e-3, 0.5 * Math.hypot(maxX - minX, maxZ - minZ));
+                    double radius = Math.max(1e-3, 0.5 * Maths.hypot(maxX - minX, maxZ - minZ));
                     mesh.meshlet(vertices, triangles, 0, new Sphere(0.5 * (minX + maxX), 0, 0.5 * (minZ + maxZ),
                         radius), Cone.NONE);
                     mesh.lod(group, error, parent, parentError);

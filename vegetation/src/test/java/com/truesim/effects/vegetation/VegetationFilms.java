@@ -83,7 +83,98 @@ class VegetationFilms {
     }
 
     static VegetationGrassParameters meadowGrass() {
-        return VegetationGrassParameters.DEFAULTS;
+        return VegetationGrassParameters.DEFAULTS.withWidth(0.014f).withColorVariation(0.4f).withDryness(0.18f);
+    }
+
+    private static final Vec3 WEST_WIND = new Vec3(1, 0, -0.35);
+
+    /** The wind at {@code t} seconds of the flight: a calm, a breeze rising over a second, then gusts. */
+    private static VegetationWindParameters flightWind(double t) {
+        VegetationWindParameters base = VegetationWindParameters.DEFAULTS.withDirection(WEST_WIND);
+        if (t < 3) {
+            return base.withSpeed(0);
+        }
+        if (t < 6.5) {
+            double up = Math.min(1, (t - 3) / 1.0);
+            return base.withSpeed((float) (3.5 * up)).withGustStrength(0.3f).withTurbulence(0.3f);
+        }
+        double up = Math.min(1, (t - 6.5) / 1.0);
+        return base.withSpeed((float) (3.5 + 6 * up)).withGustStrength(0.9f).withGustScale(14).withTurbulence(0.35f)
+            .withFlutter(0.12f);
+    }
+
+    @Test
+    void meadowFlight() throws IOException {
+        Path out = folder("meadow-flight");
+        int frames = 300;
+        try (Meadow meadow = new Meadow(device, WIDTH * SUPER, HEIGHT * SUPER, Meadow::hills, 500)) {
+            meadow.grass(GrassPatch.of(meadow.graph.settings()), meadowGrass(), 0, -10, 130);
+            meadow.look(0, 1, 0, 0, -4, 60).shade(true, true);
+            for (int f = 0; f < frames; f++) {
+                double t = f / 30.0;
+                double z = 2 - 1.4 * t;
+                double x = 0.6 * Math.sin(t * 0.4);
+                double y = Meadow.hills(x, z) + 0.75 + 0.1 * Math.sin(t * 0.7);
+                meadow.look(x, y, z, 8 * Math.sin(t * 0.3), -5, 60).wind(flightWind(t));
+                meadow.frames(f == 0 ? 4 : 1, 1 / 30.0);
+                write(meadow.shot(), out, f);
+            }
+        }
+    }
+
+    @Test
+    void hillside() throws IOException {
+        Path out = folder("hillside");
+        int frames = 270;
+        try (Meadow meadow = new Meadow(device, WIDTH * SUPER, HEIGHT * SUPER, Meadow::hillside, 700)) {
+            meadow.grass(GrassPatch.of(meadow.graph.settings()), meadowGrass(), 0, -60, 115);
+            int[] tree = meadow.treeMeshAndMaterials(30);
+            var scatter = new com.truesim.effects.vegetation.scene.PlantScatter(
+                com.truesim.scene.assets.AssetRef.generated(com.truesim.scene.render.RenderAssets.MODEL,
+                    (com.truesim.scene.assets.Generator<String, com.truesim.scene.render.ModelData>) (a, b) -> null,
+                    "unused", 0), 140, 70, 7, 0.7, 1.4, 30, 14, 60, 11,
+                com.truesim.scene.render.MaterialData.builder("vegetationPlant").build().values());
+            for (var p : com.truesim.effects.vegetation.scene.PlantPlacement.place(scatter, 0, -150,
+                    meadow.vegetationGround())) {
+                // a forest over the crest, a few spruces down the slope
+                if (p.z() < -105 || GrassPatches.unit(GrassPatches.hash((int) (p.x() * 7 + p.z() * 13))) < 0.08) {
+                    meadow.tree(p.x(), p.z(), (float) p.scale(), tree[0], tree[1]);
+                }
+            }
+            VegetationWindParameters gusty = VegetationWindParameters.DEFAULTS.withDirection(WEST_WIND).withSpeed(8)
+                .withGustStrength(0.9f).withGustScale(20).withTurbulence(0.3f).withFlutter(0.1f);
+            meadow.look(0, Meadow.hillside(0, 10) + 2.2, 10, 0, 7, 60).shade(true, true).wind(gusty);
+            for (int f = 0; f < frames; f++) {
+                double t = f / 30.0;
+                double x = -6 + 1.2 * t;
+                meadow.look(x, Meadow.hillside(x, 10) + 2.2, 10, 10 - 2.2 * t, 7, 60);
+                meadow.frames(f == 0 ? 4 : 1, 1 / 30.0);
+                write(meadow.shot(), out, f);
+            }
+        }
+    }
+
+    @Test
+    void lod() throws IOException {
+        Path out = folder("lod");
+        int frames = 240;
+        try (Meadow meadow = new Meadow(device, WIDTH * SUPER, HEIGHT * SUPER, Meadow::flat, 500)) {
+            meadow.grass(GrassPatch.of(meadow.graph.settings()), meadowGrass().withDetailColors(1), 0, 0, 115);
+            meadow.look(0, 2, 0, 0, -8, 60).shade(true, true)
+                .wind(VegetationWindParameters.DEFAULTS.withDirection(WEST_WIND).withSpeed(4));
+            // Walking at eye height, then rising to 7 m looking down the meadow: bands of detail round the camera
+            // (green full detail, yellow a quarter of the blades, orange a sixteenth, red the coarsest), thinning
+            for (int f = 0; f < frames; f++) {
+                double t = f / 30.0;
+                double blend = Math.clamp((t - 3) / 3, 0, 1);
+                blend = blend * blend * (3 - 2 * blend);
+                double y = 1.7 + blend * 10.3;
+                double pitch = -6 - blend * 12;
+                meadow.look(0, y, 30 - 1.4 * t, 10 * Math.sin(t * 0.25), pitch, 60);
+                meadow.frames(f == 0 ? 4 : 1, 1 / 30.0);
+                write(meadow.shot(), out, f);
+            }
+        }
     }
 
     @Test
@@ -91,12 +182,9 @@ class VegetationFilms {
         try (Meadow meadow = new Meadow(device, WIDTH * SUPER, HEIGHT * SUPER, Meadow::flat, 400)) {
             meadow.grass(GrassPatch.of(meadow.graph.settings()), meadowGrass(), 0, 0, 110);
             meadow.look(0, 1.2, 0, 0, -6, 60).shade(true, true)
-                .wind(VegetationWindParameters.DEFAULTS.withSpeed(4).withDirection(new Vec3(1, 0, -0.3)));
+                .wind(VegetationWindParameters.DEFAULTS.withSpeed(4).withDirection(WEST_WIND));
             meadow.frames(4, 1 / 30.0);
             write(meadow.shot(), folder("still"), 0);
-            meadow.look(2, 12, 2, 0, -89, 60);
-            meadow.frames(3, 0);
-            write(meadow.shot(), folder("still"), 1);
         }
     }
 }

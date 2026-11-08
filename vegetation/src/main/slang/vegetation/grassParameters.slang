@@ -30,8 +30,8 @@ public struct VegetationGrassParameters
     public float windBend = 0.01;                                  // radians of steady lean per (m/s) squared
     public float maxLean = 1.3;                                    // radians: the most the wind lays a blade over
     public float swayFrequency = 1.3;                              // a blade's own sway, cycles a second
-    [Range(0, 1)] public float roundness = 0.45;                  // normals turned across the blade: it reads round
-    [Range(0, 1)] public float roughness = 0.5;
+    [Range(0, 1)] public float roundness = 0.3;                   // normals turned across the blade: it reads round
+    [Range(0, 1)] public float roughness = 0.62;
     public float patchSize = 8;                                    // the template's side: blades' identity by patch
     public float spacing = 0.07;                                   // the template's blade spacing: roots jitter by it
     public float lodError = 0.0086;                                // the template's first coarser level's error

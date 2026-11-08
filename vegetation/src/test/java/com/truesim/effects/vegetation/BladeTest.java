@@ -218,6 +218,41 @@ class BladeTest {
     }
 
     @Test
+    void clumpsLeaveNoBareLanes() {
+        // Roots on a jittered grid over 4 x 4 m, drawn to their clumps: across any band of 5 cm as many as elsewhere.
+        // (Clumps by grid cell emptied the cells' edges: lanes along the grid with a quarter of the blades.)
+        int side = 112;
+        Vertex[] roots = new Vertex[side * side];
+        for (int j = 0; j < side; j++) {
+            for (int i = 0; i < side; i++) {
+                float x = (i + 0.5f) * 4f / side;
+                float z = (j + 0.5f) * 4f / side;
+                roots[j * side + i] = Vertex.of(j * side + i, x, z, 0, -1);
+            }
+        }
+        float[][] out = probe.run(GRASS.withSpacing(4f / side), null, null, SEGMENTS, roots);
+        int[] bandsX = new int[80];
+        int[] bandsZ = new int[80];
+        for (int i = 0; i < roots.length; i++) {
+            double x = roots[i].rootX() + out[i][0];
+            double z = roots[i].rootZ() + out[i][2];
+            int bx = (int) Math.floor(x / 0.05);
+            int bz = (int) Math.floor(z / 0.05);
+            if (bx >= 2 && bx < 78) {
+                bandsX[bx]++;
+            }
+            if (bz >= 2 && bz < 78) {
+                bandsZ[bz]++;
+            }
+        }
+        double mean = roots.length / 80.0;
+        for (int b = 4; b < 76; b++) {
+            assertThat(bandsX[b]).as("blades over x in band %d (mean %.0f)", b, mean).isGreaterThan((int) (0.6 * mean));
+            assertThat(bandsZ[b]).as("blades over z in band %d (mean %.0f)", b, mean).isGreaterThan((int) (0.6 * mean));
+        }
+    }
+
+    @Test
     void snowPressesBladesDown() {
         Vertex[] line = centreLine(4242, 0, 0);
         float[][] bare = probe.run(GRASS, null, VegetationFieldParameters.DEFAULTS, SEGMENTS, line);

@@ -180,6 +180,85 @@ class GrassRenderTest {
     }
 
     @Test
+    void theScenesWindValuesMoveTheGrass() {
+        // No wind from code: the scene's values for vegetation.wind (a ShadingHookComponent's) drive it, the time the
+        // hooks' clock
+        Meadow meadow = meadow(60).grass(PATCH, GRASS, 0, 0, 12);
+        meadow.look(0, 1.2, 5, 0, -10, 60).shade(true, true);
+        meadow.frames(8, 0.1);
+        int[] still = pixels(meadow.shot());
+        com.truesim.engine.render.ShadingHookValues values = com.truesim.engine.render.ShadingHookValues.of(
+            gpu.device());
+        try {
+            values.set(VegetationHooks.WIND, GUSTY, true);
+            meadow.frames(3, 0.1);
+            assertThat(pixels(meadow.shot())).as("the scene's wind").isNotEqualTo(still);
+            values.on(VegetationHooks.WIND, false);
+            meadow.frames(3, 0.1);
+            assertThat(pixels(meadow.shot())).as("the scene's wind off").isEqualTo(still);
+        } finally {
+            values.remove(VegetationHooks.WIND);
+        }
+    }
+
+    @Test
+    void treesSwayInTheWindAndRestInACalm() {
+        Meadow meadow = meadow(60);
+        int[] tree = meadow.treeMeshAndMaterials(30);
+        meadow.tree(0, -8, 1, tree[0], tree[1]);
+        meadow.look(0, 5, 6, 0, 0, 70).shade(true, true);
+        meadow.frames(8, 0.1);
+        BufferedImage rest = meadow.shot();
+        keep(rest, "tree-rest");
+        meadow.wind(GUSTY.withSpeed(0)).frames(3, 0.1);
+        assertThat(pixels(meadow.shot())).as("a calm: the tree at rest").isEqualTo(pixels(rest));
+        meadow.wind(GUSTY.withSpeed(14)).frames(3, 0.1);
+        BufferedImage windy = meadow.shot();
+        keep(windy, "tree-wind");
+        int top = 0;
+        for (int y = 0; y < SIZE / 3; y++) {
+            for (int x = 0; x < SIZE; x++) {
+                top += difference(windy.getRGB(x, y), rest.getRGB(x, y)) > 30 ? 1 : 0;
+            }
+        }
+        assertThat(top).as("the crown moves").isGreaterThan(SIZE / 2);
+        // The trunk just over its foot stays where it stood
+        int[] foot = pixelOf(meadow, 0, 0.4, -8);
+        assertThat(difference(windy.getRGB(foot[0], foot[1]), rest.getRGB(foot[0], foot[1]))).as("the foot")
+            .isLessThan(12);
+    }
+
+    @Test
+    void treesWithCommonProceduralsWindAttributesSwayAndAreNotTinted() {
+        int[][] calm = new int[2][];
+        for (int run = 0; run < 2; run++) {
+            Meadow meadow = meadow(60);
+            int[] tree = meadow.treeMeshAndMaterials(30, run == 1);
+            meadow.tree(0, -8, 1, tree[0], tree[1]);
+            meadow.look(0, 5, 6, 0, 0, 70).shade(true, true);
+            meadow.frames(8, 0.1);
+            calm[run] = pixels(meadow.shot());
+            if (run == 1) {
+                assertThat(calm[1]).as("the weights in the color tint nothing: as the tree without them")
+                    .isEqualTo(calm[0]);
+                meadow.wind(GUSTY.withSpeed(14)).frames(3, 0.1);
+                BufferedImage windy = meadow.shot();
+                keep(windy, "tree-procedural-wind");
+                int moved = 0;
+                int[] now = pixels(windy);
+                for (int i = 0; i < now.length / 3; i++) {
+                    moved += difference(now[i], calm[1][i]) > 30 ? 1 : 0;
+                }
+                assertThat(moved).as("the crown sways by its weights").isGreaterThan(SIZE / 2);
+                int[] foot = pixelOf(meadow, 0, 0.4, -8);
+                assertThat(difference(windy.getRGB(foot[0], foot[1]), calm[1][foot[1] * SIZE + foot[0]]))
+                    .as("the foot (trunk weight 0)").isLessThan(12);
+            }
+            meadow.close();
+        }
+    }
+
+    @Test
     void motionVectorsCarryAFrameOntoTheNext() {
         Assumptions.assumeTrue(gpu.device().primitiveIds(), "the visibility buffer needs primitive IDs");
         try (GpuImage motion = new GpuImage(gpu.device(), SIZE, SIZE, VK_FORMAT_R16G16_SFLOAT,
@@ -282,6 +361,18 @@ class GrassRenderTest {
         keep(meadow.shot(), "shadow-bare");
         double bare = soil(meadow.shot(), meadow, sx, sz);
         assertThat(shaded).as("the soil in the grass's shadow, against bare").isLessThan(bare * 0.85);
+    }
+
+    /** The pixel world (x, y, z) projects to in {@code meadow}'s view. */
+    private static int[] pixelOf(Meadow meadow, double x, double y, double z) {
+        float[] m = meadow.camera.viewProjection();
+        double rx = x - meadow.camera.position(0);
+        double ry = y - meadow.camera.position(1);
+        double rz = z - meadow.camera.position(2);
+        double cx = m[0] * rx + m[4] * ry + m[8] * rz + m[12];
+        double cy = m[1] * rx + m[5] * ry + m[9] * rz + m[13];
+        double w = m[3] * rx + m[7] * ry + m[11] * rz + m[15];
+        return new int[] {(int) ((cx / w * 0.5 + 0.5) * SIZE), (int) ((cy / w * 0.5 + 0.5) * SIZE)};
     }
 
     /** The mean brightness of the image round world (x, 0, z), looking straight down. */

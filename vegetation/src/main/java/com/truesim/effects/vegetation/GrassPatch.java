@@ -1,5 +1,7 @@
 package com.truesim.effects.vegetation;
 
+import com.truesim.common.math.Maths;
+
 /**
  * What a grass patch template is built from ({@link GrassPatches}): a generated mesh asset's parameters, so equal
  * parameters are one asset.
@@ -60,11 +62,11 @@ public record GrassPatch(float size, float density, int segments, int levels, fl
 
     /** The share of blades level {@code level} keeps: 4^-level. */
     public static double share(int level) {
-        return Math.pow(0.25, level);
+        return Maths.pow(0.25, level);
     }
 
     /** Level {@code level}'s error: 0 at full detail, then {@code error} doubling each level. */
     public double levelError(int level) {
-        return level == 0 ? 0 : error * Math.pow(2, level - 1);
+        return level == 0 ? 0 : error * Maths.pow(2, level - 1);
     }
 }

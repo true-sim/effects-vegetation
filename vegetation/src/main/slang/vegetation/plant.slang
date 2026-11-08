@@ -43,18 +43,28 @@ public struct VegetationPlant : IMaterial
         float time = wind[0].time;
         float3 position = in.position;
         float up = saturate(position.y / max(p.height, 1e-3));
-        // The weights: from the vertex color, or from the shape
+        // The weights: from the vertex color and second UV set (common-procedural's trees, its ProceduralVertex: red the
+        // trunk's weight, green the branch's, blue a byte of the leaf weight's 16ths of 15 (high nibble) and the phase's
+        // 16ths (low nibble), alpha always 1; UV1 the main branch's pivot height and reach), or from the shape
+        float trunk;
         float branch;
         float leaf;
         float phase;
+        float pivot = 0;
+        float reach = max(p.radius, 1e-3);
         if (p.windColors != 0)
         {
-            branch = in.color.r;
-            leaf = in.color.g;
-            phase = in.color.b;
+            trunk = in.color.r;
+            branch = in.color.g;
+            uint packed = uint(round(saturate(in.color.b) * 255));
+            leaf = float(packed >> 4) / 15;
+            phase = float(packed & 15u) / 16;
+            pivot = in.uv1.x;
+            reach = max(in.uv1.y, 1e-3);
         }
         else
         {
+            trunk = up * up;
             branch = saturate(length(position.xz) / max(p.radius, 1e-3)) * up;
             leaf = p.leafWeight * up;
             int3 cell = int3(floor(position * 4));
@@ -73,17 +83,21 @@ public struct VegetationPlant : IMaterial
         lean += p.trunkSway * lean * sin(TAU * p.trunkFrequency * time + own);
         float maxLean = max(p.maxLean, 1e-3);
         lean = maxLean * tanh(lean / maxLean);
-        float bend = lean * up * up;
+        float bend = lean * trunk;
         float y = max(position.y, 0.0);
         float3 move = along * (sin(bend) * y) + float3(0, (cos(bend) - 1) * y, 0);
-        // Branches and leaves
+        // Branches: swung about their pivot (0, pivot, 0) towards and across the wind, keeping their length
         float swing = sin(TAU * p.branchFrequency * time + own + TAU * phase);
-        move += (along + 0.6 * across) * (p.branchSway * speed * branch * swing);
+        float angle = p.branchSway * speed * branch * swing / reach;
+        float3 arm = position - float3(0, pivot, 0);
+        float3 axis = normalize(cross(float3(0, 1, 0), along + 0.6 * across) + float3(1e-6, 0, 0));
+        float3 turned = arm * cos(angle) + cross(axis, arm) * sin(angle) + axis * (dot(axis, arm) * (1 - cos(angle)));
+        move += turned - arm;
         float flutter = sin(TAU * p.leafFrequency * time + TAU * 7.3 * phase + own);
         move += in.normal * (p.leafFlutter * speed * leaf * flutter);
         d.position = position + move;
         // The normal turned as the trunk's slope is
-        float slope = 2 * lean * up / max(p.height, 1e-3) * y;
+        float slope = lean * trunk;
         d.normal = normalize(in.normal - along * (slope * in.normal.y) + float3(0, 1, 0) * (slope * dot(in.normal, along)));
         return d;
     }

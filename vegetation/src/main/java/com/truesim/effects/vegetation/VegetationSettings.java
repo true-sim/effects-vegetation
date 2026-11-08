@@ -1,5 +1,6 @@
 package com.truesim.effects.vegetation;
 
+import com.truesim.common.math.Maths;
 import com.truesim.engine.settings.Setting;
 import java.util.List;
 
@@ -44,16 +45,19 @@ public final class VegetationSettings {
     /** Patches a frame takes in or lets go of at most as the viewer moves: the rest follow in later frames. */
     public static final Setting<Integer> PATCH_BUDGET = Setting.integer("vegetation.grass.patchBudget", 512, 1,
         1 << 20, "grass patches a frame adds or removes at most");
+    /** Plants of a scatter with a radius a frame takes in at most as the viewer moves: the rest follow later. */
+    public static final Setting<Integer> PLANT_BUDGET = Setting.integer("vegetation.plants.budget", 256, 1, 1 << 20,
+        "plants of a scatter with a radius a frame adds at most");
     /** The strongest wind plants are bounded for, metres a second: their displacement's bound. */
     public static final Setting<Float> MAX_WIND = Setting.decimal("vegetation.wind.maxSpeed", 30f, 0f, 120f,
         "the strongest wind vegetation is bounded for, metres a second");
 
     /** The vertical pixels and field of view {@link #LOD_DISTANCE} is given at: the engine's projection scale. */
-    public static final float REFERENCE_PROJECTION = (float) (1080 / (2 * Math.tan(Math.toRadians(30))));
+    public static final float REFERENCE_PROJECTION = (float) (1080 / (2 * Maths.tan(Math.PI / 6)));
 
     /** Every setting, to register. */
     public static final List<Setting<?>> ALL = List.of(RADIUS, PATCH_SIZE, DENSITY, SEGMENTS, LEVELS, LOD_DISTANCE,
-        TEMPLATE_HEIGHT, RELIEF, MAX_WIDEN, PATCH_BUDGET, MAX_WIND);
+        TEMPLATE_HEIGHT, RELIEF, MAX_WIDEN, PATCH_BUDGET, PLANT_BUDGET, MAX_WIND);
 
     private VegetationSettings() {
     }

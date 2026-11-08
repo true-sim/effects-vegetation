@@ -17,6 +17,11 @@ public final class TreeMeshes {
 
     /** A spruce {@code height} tall: a trunk to 0.8 of it and four cones of foliage up to the top, {@code radius} wide. */
     public static MeshData spruce(double height, double radius) {
+        return spruce(height, radius, false);
+    }
+
+    /** {@link #spruce(double, double)}, with common-procedural's wind attributes where {@code wind}. */
+    public static MeshData spruce(double height, double radius, boolean wind) {
         float[] positions = new float[0];
         int[] trunk = new int[0];
         int[] crown = new int[0];
@@ -39,7 +44,7 @@ public final class TreeMeshes {
         base = 2 * SIDES;
         // the crown: tiers of cones, each a ring and its apex
         int tiers = 4;
-        crown = new int[tiers * SIDES * 6];
+        crown = new int[tiers * SIDES * 9];
         int at = 0;
         for (int t = 0; t < tiers; t++) {
             double bottom = height * (0.2 + 0.19 * t);
@@ -75,9 +80,35 @@ public final class TreeMeshes {
         int[] all = new int[trunk.length + crown.length];
         System.arraycopy(trunk, 0, all, 0, trunk.length);
         System.arraycopy(crown, 0, all, trunk.length, crown.length);
-        return new MeshBuilder(VertexFormat.of(VertexAttribute.NORMAL), count).positions(positions)
-            .attribute(VertexAttribute.NORMAL, TestMeshes.normals(positions, all)).submesh(trunk).submesh(crown)
-            .buildHierarchy();
+        if (!wind) {
+            return new MeshBuilder(VertexFormat.of(VertexAttribute.NORMAL), count).positions(positions)
+                .attribute(VertexAttribute.NORMAL, TestMeshes.normals(positions, all)).submesh(trunk).submesh(crown)
+                .buildHierarchy();
+        }
+        // common-procedural's wind attributes: red the trunk's weight (h / height)^1.5, green a branch's (here the
+        // crown's distance from the trunk over its radius, ^1.5), blue the leaf weight's 15ths and the phase's 16ths in
+        // its nibbles, alpha 1; UV1 the pivot height (the crown's tier, here 0.2 of the height) and the reach
+        float[] colors = new float[4 * count];
+        float[] uv1 = new float[2 * count];
+        for (int v = 0; v < count; v++) {
+            double x = positions[3 * v];
+            double y = positions[3 * v + 1];
+            double z = positions[3 * v + 2];
+            boolean foliage = v >= 2 * SIDES;
+            double branch = foliage ? Math.pow(Math.min(1, Math.hypot(x, z) / radius), 1.5) : 0;
+            int leaf = foliage ? 15 : 0;
+            int phase = (int) Math.floor(16 * ((v * 0.618034) % 1));
+            colors[4 * v] = (float) Math.pow(Math.max(0, y) / height, 1.5);
+            colors[4 * v + 1] = (float) branch;
+            colors[4 * v + 2] = (16 * leaf + phase) / 255f;
+            colors[4 * v + 3] = 1;
+            uv1[2 * v] = (float) (0.2 * height);
+            uv1[2 * v + 1] = (float) radius;
+        }
+        return new MeshBuilder(VertexFormat.of(VertexAttribute.NORMAL, VertexAttribute.UV1, VertexAttribute.COLOR),
+            count).positions(positions).attribute(VertexAttribute.NORMAL, TestMeshes.normals(positions, all))
+            .attribute(VertexAttribute.UV1, uv1).attribute(VertexAttribute.COLOR, colors).submesh(trunk)
+            .submesh(crown).buildHierarchy();
     }
 
     private static void set(float[] positions, int vertex, double x, double y, double z) {

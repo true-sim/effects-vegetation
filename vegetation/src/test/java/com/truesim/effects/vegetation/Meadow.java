@@ -65,7 +65,7 @@ final class Meadow implements AutoCloseable {
 
     private static final Key<Image> SHOWN = Key.image("test.vegetation.shown");
     /** The ground's color: the dark green brown under a sward. */
-    static final Color SOIL = new Color(0.035f, 0.05f, 0.018f, 1);
+    static final Color SOIL = new Color(0.045f, 0.085f, 0.018f, 1);
 
     final VulkanDevice device;
     final int width;
@@ -120,7 +120,7 @@ final class Meadow implements AutoCloseable {
         soil = materials.add(new Material(MetallicRoughnessParameters.DEFAULTS
             .withBaseColor(SOIL).withRoughness(0.95f).withMetallic(0)));
         scene.set(nextId++, groundMesh, soil, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1);
-        lights.directional(0, -sun[0], -sun[1], -sun[2], 3.2f, 3.0f, 2.7f);
+        lights.directional(0, -sun[0], -sun[1], -sun[2], 4.2f, 3.9f, 3.4f);
         lights.shadow(0, ShadowSpec.cascades(4, 2048, 120));
         lights.setCount(1);
     }
@@ -135,6 +135,12 @@ final class Meadow implements AutoCloseable {
         return 0.12 * (-x - z) + 3 * Math.sin(x / 23.0) * Math.cos(z / 31.0) + 1.2 * Math.sin((x + 2 * z) / 11.0);
     }
 
+    /** A valley floor rising to a hillside to the north (-z): 22 m up between 40 and 120 m away, with swells. */
+    static double hillside(double x, double z) {
+        double rise = 1 / (1 + Math.exp((z + 75) / 18));
+        return 22 * rise + 1.5 * Math.sin(x / 19.0) * Math.cos(z / 27.0) + 0.6 * Math.sin((x + 2 * z) / 9.0);
+    }
+
     /** The ground as a {@link VegetationGround}. */
     VegetationGround vegetationGround() {
         return (x, z) -> ground.applyAsDouble(x, z);
@@ -146,7 +152,7 @@ final class Meadow implements AutoCloseable {
         try (MeshData mesh = GrassPatches.build(patch)) {
             patchMesh = pool.add(mesh);
         }
-        grassMaterial = materials.add(GrassMaterials.material(grass, patch, 3, 3));
+        grassMaterial = materials.add(GrassMaterials.material(grass, patch, 4, 3));
         double size = patch.size();
         int reach = (int) Math.ceil(radius / size);
         int cx = (int) Math.floor(x / size);
@@ -200,8 +206,14 @@ final class Meadow implements AutoCloseable {
 
     /** The placeholder tree's mesh, and its two materials (bark, then needles) from the returned first one. */
     int[] treeMeshAndMaterials(float maxWind) {
-        int mesh = pool.add(TreeMeshes.spruce(10, 2.6));
-        VegetationPlantParameters base = VegetationPlantParameters.DEFAULTS.withHeight(10).withRadius(2.6f);
+        return treeMeshAndMaterials(maxWind, false);
+    }
+
+    /** {@link #treeMeshAndMaterials(float)}, the wind's weights from common-procedural's attributes where {@code wind}. */
+    int[] treeMeshAndMaterials(float maxWind, boolean wind) {
+        int mesh = pool.add(TreeMeshes.spruce(10, 2.6, wind));
+        VegetationPlantParameters base = VegetationPlantParameters.DEFAULTS.withHeight(10).withRadius(2.6f)
+            .withWindColors(wind ? 1 : 0);
         VegetationPlantParameters bark = base.withBase(MetallicRoughnessParameters.DEFAULTS
             .withBaseColor(new Color(0.12f, 0.08f, 0.05f, 1)).withRoughness(0.9f).withMetallic(0));
         VegetationPlantParameters needles = base.withLeafWeight(1).withBase(MetallicRoughnessParameters.DEFAULTS
@@ -346,7 +358,7 @@ final class Meadow implements AutoCloseable {
                 double up = Math.max(dy, 0);
                 double horizon = Math.pow(1 - up, 3);
                 double[] c = dy >= 0
-                    ? new double[] {0.18 + 0.55 * horizon, 0.32 + 0.5 * horizon, 0.75 + 0.3 * horizon}
+                    ? new double[] {0.11 + 0.4 * horizon, 0.2 + 0.38 * horizon, 0.5 + 0.22 * horizon}
                     : new double[] {0.09, 0.1, 0.07};
                 double cos = dx * sun[0] + dy * sun[1] + dz * sun[2];
                 double angle = Math.acos(Math.min(1, cos));

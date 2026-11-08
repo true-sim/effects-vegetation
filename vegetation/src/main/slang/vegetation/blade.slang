@@ -136,11 +136,31 @@ public BladeOutput bladeVertex(VegetationGrassParameters p, BladeInput b, Vegeta
     uint seed = bladeSeed(b.id, b.cell);
     // Where it stands: jittered within its slot, drawn to its clump's middle
     float2 root = b.rootWorld + (float2(unit(bladeHash(seed + 1)), unit(bladeHash(seed + 2))) - 0.5) * p.spacing;
+    // Clumps are the cells of a jittered grid's Voronoi diagram: the nearest of the 3 x 3 jittered points round the
+    // root's cell. (Pulling roots to their grid cell's point instead left lanes along the grid's lines, bare where the
+    // pull emptied the cells' edges: pitfalls.md.)
     float clumpSize = max(p.clumpSize, 1e-3);
-    float2 clumpCell = floor(root / clumpSize);
-    uint clumpSeed = bladeHash(uint(int(clumpCell.x)) * 0x27D4EB2Fu ^ bladeHash(uint(int(clumpCell.y))));
-    float2 clumpMiddle = (clumpCell + 0.25 + 0.5 * float2(unit(clumpSeed), unit(bladeHash(clumpSeed + 1))))
-        * clumpSize;
+    float2 home = floor(root / clumpSize);
+    float2 clumpMiddle = root;
+    uint clumpSeed = 0;
+    float nearest = 1e30;
+    for (int dz = -1; dz <= 1; dz++)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            int2 c = int2(home) + int2(dx, dz);
+            uint h = bladeHash(uint(c.x) * 0x27D4EB2Fu ^ bladeHash(uint(c.y)));
+            float2 point = (float2(c) + float2(unit(h), unit(bladeHash(h + 1)))) * clumpSize;
+            float2 to = point - root;
+            float d = dot(to, to);
+            if (d < nearest)
+            {
+                nearest = d;
+                clumpMiddle = point;
+                clumpSeed = h;
+            }
+        }
+    }
     root += (clumpMiddle - root) * (p.clumpPull * unit(bladeHash(seed + 3)));
     // Whether it stands: the type's density, the ground's, the field's bounds
     float keep = p.density;

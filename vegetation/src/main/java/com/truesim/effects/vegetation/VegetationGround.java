@@ -1,5 +1,7 @@
 package com.truesim.effects.vegetation;
 
+import com.truesim.common.math.Maths;
+
 /**
  * The ground vegetation stands on: its height, slope and how densely things grow, at world x and z (metres), for
  * placing patches and plants on the CPU, and the same as a {@link GroundMap} for the blades on the GPU. A terrain
@@ -24,7 +26,7 @@ public interface VegetationGround {
     default double slope(double x, double z, double step) {
         double dx = (height(x + step, z) - height(x - step, z)) / (2 * step);
         double dz = (height(x, z + step) - height(x, z - step)) / (2 * step);
-        return Math.toDegrees(Math.atan(Math.sqrt(dx * dx + dz * dz)));
+        return (180 / Math.PI) * (Maths.atan(Math.sqrt(dx * dx + dz * dz)));
     }
 
     /** The ground on the GPU, for blades standing on it and thinning with its density; null: each patch's plane. */

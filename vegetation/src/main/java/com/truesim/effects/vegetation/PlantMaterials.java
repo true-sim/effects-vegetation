@@ -1,5 +1,6 @@
 package com.truesim.effects.vegetation;
 
+import com.truesim.common.math.Maths;
 import com.truesim.annotations.AllowAllocation;
 import com.truesim.effects.vegetation.materials.VegetationPlant;
 import com.truesim.effects.vegetation.materials.VegetationPlantParameters;
@@ -17,8 +18,9 @@ public final class PlantMaterials {
      */
     public static float displacement(VegetationPlantParameters p, float maxWind) {
         double lean = Math.min(p.maxLean(), p.trunkBend() * maxWind * maxWind * 2.5 * (1 + p.trunkSway()));
-        double trunk = p.height() * 2 * Math.sin(lean / 2); // the chord of the top's arc
-        double branch = p.branchSway() * maxWind * Math.sqrt(1 + 0.36);
+        double trunk = p.height() * 2 * Maths.sin(lean / 2); // the chord of the top's arc
+        // a branch's tip at its reach swings by branchSway * speed; parts past the reach (leaves, twigs) by up to 2.5 times
+        double branch = 2.5 * p.branchSway() * maxWind * Math.sqrt(1 + 0.36);
         double leaf = p.leafFlutter() * maxWind;
         return (float) (trunk + branch + leaf + 1e-3);
     }
