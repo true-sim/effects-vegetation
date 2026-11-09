@@ -45,9 +45,12 @@ public final class VegetationSettings {
     /** Patches a frame takes in or lets go of at most as the viewer moves: the rest follow in later frames. */
     public static final Setting<Integer> PATCH_BUDGET = Setting.integer("vegetation.grass.patchBudget", 512, 1,
         1 << 20, "grass patches a frame adds or removes at most");
-    /** Plants of a scatter with a radius a frame takes in at most as the viewer moves: the rest follow later. */
-    public static final Setting<Integer> PLANT_BUDGET = Setting.integer("vegetation.plants.budget", 256, 1, 1 << 20,
-        "plants of a scatter with a radius a frame adds at most");
+    /**
+     * Plants a frame takes in at most, over every scatter with a radius or impostors, as the viewer moves (models and
+     * impostors alike): the rest follow in later frames. A camera cut spreads over frames instead of stalling one.
+     */
+    public static final Setting<Integer> PLANT_BUDGET = Setting.integer("vegetation.plants.budget", 1024, 1, 1 << 20,
+        "plants a frame adds at most, over every scatter with a radius or impostors");
     /**
      * Metres from the viewer past which the plants of a scatter with impostors ({@link
      * com.truesim.effects.vegetation.scene.PlantScatter#impostors}) start to become their octahedral impostors. Read

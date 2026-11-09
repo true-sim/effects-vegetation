@@ -59,6 +59,7 @@ public final class VegetationSync implements AutoCloseable {
     private long fieldsSeen = -1;
     private long scattersSeen = -1;
     private int patchesAdded;
+    private int plantsAdded; // this frame, over every scatter
 
     /** A field drawn: its component, its container, its patches by cell, its references. */
     private static final class Field {
@@ -184,6 +185,7 @@ public final class VegetationSync implements AutoCloseable {
     @AllowImpure("follows the scene's components and the viewer")
     public void update(double x, double y, double z) {
         patchesAdded = 0;
+        plantsAdded = 0;
         bakesThisFrame = 0;
         ComponentStore<GrassField> grass = scene.components().store(GrassField.TYPE);
         if (grass.version() != fieldsSeen) {
@@ -619,7 +621,8 @@ public final class VegetationSync implements AutoCloseable {
     /**
      * A scatter with a radius or impostors, the viewer at ({@code x}, {@code y}, {@code z}): its plants within the radius
      * (if it has one) as their model up to the impostors' band's end, as their impostor from its start, each added
-     * before the other goes (no frame without the plant), within the budget a frame; the rest follow in later frames.
+     * before the other goes (no frame without the plant), within the budget a frame over every scatter (a camera cut
+     * spreads its plants over frames instead of spawning tens of thousands in one); the rest follow in later frames.
      */
     @AllowAllocation("when the viewer crosses into another cell of the scatter, or the ring is still filling")
     private void followPlants(Scatter s, double x, double y, double z) {
@@ -634,7 +637,6 @@ public final class VegetationSync implements AutoCloseable {
             return;
         }
         int budget = settings.get(VegetationSettings.PLANT_BUDGET);
-        int added = 0;
         boolean complete = true;
         for (int i = 0; i < s.placements.size(); i++) {
             PlantPlacement.Plant p = s.placements.get(i);
@@ -657,17 +659,17 @@ public final class VegetationSync implements AutoCloseable {
             long mesh = s.meshRoots[i];
             long imp = s.farNodes[i];
             if (wantMesh && mesh == NONE) {
-                if (added < budget) {
+                if (plantsAdded < budget) {
                     spawn(s, i);
-                    added++;
+                    plantsAdded++;
                 } else {
                     complete = false;
                 }
             }
             if (wantFar && imp == NONE) {
-                if (added < budget) {
+                if (plantsAdded < budget) {
                     spawnImpostor(s, i);
-                    added++;
+                    plantsAdded++;
                 } else {
                     complete = false;
                 }
