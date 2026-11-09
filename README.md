@@ -119,7 +119,7 @@ materials count as leaves (flutter, lit through).
 - **Meadow flowers** (common-procedural's flower and grass clumps: gentian, arnica, buttercup, ...) are a scatter per
   species over the meadow, each with its own spacing, so species mix by density beside the GPU grass; a scatter with a
   `radius` keeps its plants in the scene only within it of the viewer, adding and removing them as it moves
-  (`vegetation.plants.budget` a frame), as grass patches do. Trees take radius 0.
+  (`vegetation.plants.budget` a frame over every scatter, so a camera cut spreads over frames), as grass patches do. Trees take radius 0.
 - **Plants are spawned only once their plant materials have loaded,** and the scatter holds them while it stands:
   plants coming and going round the viewer find them loaded, so the renderer never draws a plant as the default
   material first and then its displacing one (effects-vegetation#2, `PlantChurnTest`; the engine's half of the cause,
@@ -185,7 +185,7 @@ uploaded from it (`GroundMap.upload`) round the viewer, or the terrain's own hei
 | `vegetation.grass.relief` | 2 | metres the ground may rise or fall within a patch (the bounds) |
 | `vegetation.grass.maxWiden` | 3 | how much wider blades get as detail thins them |
 | `vegetation.grass.patchBudget` | 512 | patches a frame adds or removes |
-| `vegetation.plants.budget` | 256 | plants of a scatter with a radius or impostors a frame adds |
+| `vegetation.plants.budget` | 1024 | plants a frame adds over every scatter with a radius or impostors |
 | `vegetation.impostors.distance` | 140 | metres from the viewer where plants start to become impostors |
 | `vegetation.impostors.fade` | 30 | metres over which they fade into them |
 | `vegetation.impostors.frames` | 8 | views per side of an impostor's octahedral grid |
