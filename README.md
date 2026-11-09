@@ -39,7 +39,7 @@ depth, every shadow map and tile, motion vectors), by `blade.slang`:
   its **clump**'s middle (world cells of `clumpSize`), clumps varying length and facing.
 - **Posture:** length, width, facing, rest lean and curvature from the seed. A blade is a curve of **fixed length**:
   each of its segments points along the vertical tilted by an angle growing along the blade (rest lean plus curvature,
-  the wind's lean by a cantilever's profile `s (2 - s)`, the tip's flutter by `s²`, snow pressing it), and each vertex
+  the wind's lean by a cantilever's profile `s (2 - s)`, the tip's flutter by `sÂ²`, snow pressing it), and each vertex
   is the sum of the segments before it. However far the wind bends it, the polyline keeps its length (tested to 2e-4).
 - **Normals** are the curve's: across the blade times its tangent at the vertex, turned towards each edge by
   `roundness` so a flat blade reads round.
@@ -56,7 +56,7 @@ The scene's geometry hook block carries the hook `vegetation.wind` (`vegetationW
 strength, scale and speed, turbulence, flutter, time), the same for every view of the scene. Content sets it as the
 scene's values (engine-scene's `ShadingHookComponent`), code with `VegetationHooks.wind`; the sync adds the time.
 
-- **Steady lean** grows with the **speed squared** (`windBend * speed² / stiffness`, each blade's stiffness varied),
+- **Steady lean** grows with the **speed squared** (`windBend * speedÂ² / stiffness`, each blade's stiffness varied),
   saturating smoothly (`tanh`) at `maxLean`.
 - **Gusts:** two octaves of value noise travelling downwind at `gustSpeed` times the speed, scaling the lean.
 - **Each blade's sway** at its own frequency and phase (and a little across the wind), and its **tip's flutter**.
@@ -74,7 +74,7 @@ scene's values (engine-scene's `ShadingHookComponent`), code with `VegetationHoo
   cluster.
 - **No popping:** the field hook (`vegetation.field`) gives the shaders the viewer (the main camera, so its shadow maps
   and motion vectors displace alike) and its projection: a blade fades out (shrinks) as the share of blades kept at its
-  distance, `(first / 2d)²`, falls past its rank, so the blades a level drops are gone before the engine leaves it
+  distance, `(first / 2d)Â²`, falls past its rank, so the blades a level drops are gone before the engine leaves it
   (tested: none of them stands at the switch). Kept blades widen (up to `maxWiden`) to keep the cover.
 - **Range:** patches exist within `vegetation.grass.radius` of the viewer (the sync adds and removes them as it moves,
   within a budget a frame); blades fade out over the last quarter, leaving the terrain's own color beyond (its material
@@ -114,15 +114,54 @@ materials count as leaves (flutter, lit through).
   branch's pivot height and reach. Models without them (Poly Haven's) take `windColors` 0: the
   trunk's weight by height over `height`, squared; a branch's by distance from the trunk over `radius` times height;
   leaves' `leafWeight` (1 for masked or two-sided materials) by height; the phase from the position.
-- **Detail:** the model's own cluster hierarchy (glTF meshes import as one), culled and chosen by the engine.
+- **Detail:** the model's own cluster hierarchy (glTF meshes import as one, common-procedural's models are one from
+  0.4), culled and chosen by the engine; far away, its octahedral impostor (below).
 - **Meadow flowers** (common-procedural's flower and grass clumps: gentian, arnica, buttercup, ...) are a scatter per
   species over the meadow, each with its own spacing, so species mix by density beside the GPU grass; a scatter with a
   `radius` keeps its plants in the scene only within it of the viewer, adding and removing them as it moves
   (`vegetation.plants.budget` a frame), as grass patches do. Trees take radius 0.
+- **Plants are spawned only once their plant materials have loaded,** and the scatter holds them while it stands:
+  plants coming and going round the viewer find them loaded, so the renderer never draws a plant as the default
+  material first and then its displacing one (effects-vegetation#2, `PlantChurnTest`; the engine's half of the cause,
+  material ids remembering the instances of the block before, is engine#467).
 - **Placement input is abstract** (`PlantPlacer`): the scatter's own rules by default; an ecology (common-procedural's
   `procedural-ecology`: suitability, belts, treeline, competition) hands its per-species output over as density fields
   (`PlantPlacer.densityField(species -> field)`, multiplying the ground's) or instance lists
   (`PlantPlacer.instances(species -> plants)`), given to the sync with `VegetationSync.placer`.
+
+## Impostors: the far forest
+
+A cluster hierarchy cannot carry a forest: leaf and needle cards are separate pieces, so simplification stops early (a
+common-procedural spruce from its level 1 keeps 15,472 of 23,006 triangles at its coarsest). A scatter with
+`impostors` (`PlantScatter.withImpostors(true)`) draws each plant past `vegetation.impostors.distance` as an
+**octahedral impostor** (Brucks): one quad.
+
+- **Baked through the engine** (`ImpostorBaker`): once the model, its materials and their textures have loaded, the
+  sync draws the model with the engine's own meshlet renderer (its materials as `vegetationImpostorBake`: the source's
+  metallic-roughness values, masks and textures, unlit) from 8 x 8 directions over the upper hemisphere
+  (hemi-octahedral), orthographic over the model's bounding sphere, 96 pixels square each: albedo, normal and position.
+  The atlas (one texture, frames x resolution wide, twice as tall) holds sqrt(albedo) and coverage above, the
+  mesh-space normal and the depth along each frame's direction below, empty texels filled from their neighbours. It is
+  handed to the cache as a generated texture asset; the quad and the `vegetationImpostor` material are generated
+  assets too. At most `vegetation.impostors.budget` bakes a frame, on the scene's thread.
+- **Drawn** (`impostor.slang`): the quad turned to the viewer (the field hook's viewer, so shadows and motion vectors
+  agree with the image) by its displacement; the four frames nearest the direction it is seen from, blended
+  bilinearly, each frame's point moved along the view to the depth the frame holds (so frames line up); lit by the
+  normals it holds, with the leaves' diffuse transmission. Holes where the frames' coverage is below half, in every
+  pass (`GEOMETRY_KEEP`).
+- **No popping:** over `vegetation.impostors.fade` metres past the distance the mesh's points thin out and the
+  impostor's fill in by a dither fixed to their texture coordinates (stable as the viewer moves, in every pass), each
+  pixel by its own distance. The two overlap: the impostor is whole from the band's middle, the mesh until it, so no
+  frame shows less than one of them. The sync keeps both in the scene over the band (plus the plant's size), adding
+  the one coming before the other goes, within `vegetation.plants.budget` a frame.
+- **Limits:** plants stand upright, turned about y (the frame's axes come from that); the quad faces the camera in
+  shadow views too, so a far tree's shadow is its silhouette as the camera sees it; a node's own transform is baked,
+  its parents' are not.
+
+`ForestImpostorTest` checks a forest of 400 common-procedural trees: far trees impostors, as much of the forest seen
+and as bright as with models, and while the camera moves through the band the forest's coverage never drops from one
+frame to the next. `ImpostorTest` checks the atlas (the tree in every frame, its albedo, normals up from above) and
+that the impostor covers what the mesh covers, level, from above and below, turned.
 
 ## Ground
 
@@ -146,7 +185,12 @@ uploaded from it (`GroundMap.upload`) round the viewer, or the terrain's own hei
 | `vegetation.grass.relief` | 2 | metres the ground may rise or fall within a patch (the bounds) |
 | `vegetation.grass.maxWiden` | 3 | how much wider blades get as detail thins them |
 | `vegetation.grass.patchBudget` | 512 | patches a frame adds or removes |
-| `vegetation.plants.budget` | 256 | plants of a scatter with a radius a frame adds |
+| `vegetation.plants.budget` | 256 | plants of a scatter with a radius or impostors a frame adds |
+| `vegetation.impostors.distance` | 140 | metres from the viewer where plants start to become impostors |
+| `vegetation.impostors.fade` | 30 | metres over which they fade into them |
+| `vegetation.impostors.frames` | 8 | views per side of an impostor's octahedral grid |
+| `vegetation.impostors.resolution` | 96 | pixels per side of each view |
+| `vegetation.impostors.budget` | 1 | impostors baked a frame |
 | `vegetation.wind.maxSpeed` | 30 | the strongest wind plants are bounded for |
 
 ## Tests
@@ -157,7 +201,7 @@ Every test that renders runs validated (`TestGpu`); the whole suite also ran cle
 - `BladeTest` (the blade function on the GPU, through a probe shader): a calm is the rest posture, whatever the time;
   length kept at 1 to 30 m/s; the steady lean four times at twice the speed, nothing across the wind, a gale never
   below the root; normals unit and across the blade; blades standing as the density says; none outside the field's
-  bounds; blades thinning with distance as `(first / 2d)�` and none a level lacks standing at its switch, none at the
+  bounds; blades thinning with distance as `(first / 2d)²` and none a level lacks standing at its switch, none at the
   radius; clumps leaving no bare lanes; snow pressing blades down.
 - `GrassPatchesTest`: the template's levels (ranks below their shares, segments, errors doubling, meshlet limits), roots
   to the patch's edges, each level spread evenly, one asset per parameters.
@@ -189,13 +233,31 @@ rounds' medians:
 | meadow to 110 m, gusts, forward shading | 0.921-0.928 ms | 648 | 8,740 | shadow atlas 0.58, forward 0.94 ms |
 | meadow to 110 m, gusts, 120 spruces | 1.575-1.578 ms | 648 | 9,071 | IDs 0.17, shadow atlas 0.41, shading 0.99 ms |
 | meadow to 250 m, gusts | 1.681-1.684 ms | 3,212 | 14,266 | IDs 0.35, shadow atlas 0.68, shading 1.25 ms |
-| meadow to 110 m, 320 blades/m�, gusts | 1.788-1.800 ms | 648 | 16,835 | IDs 0.48, shadow atlas 0.92, shading 1.66 ms |
+| meadow to 110 m, 320 blades/m², gusts | 1.788-1.800 ms | 648 | 16,835 | IDs 0.48, shadow atlas 0.92, shading 1.66 ms |
 
 (Pass timings come from a separate run with the graph's timings on and do not add up to the frame.) A meadow to the
 horizon costs about 1.2 ms over the bare ground on the visibility buffer and 0.6 ms with forward shading. The
 visibility buffer pays most in its shading pass, which rebuilds each pixel's displaced triangle and so runs the
 blade's displacement for three vertices per pixel; forward shading displaces each vertex once. Shadow maps redraw the
 blades' cascade tiles every frame (displaced casters are never cached).
+
+### Forests: models, hierarchies, impostors
+
+`ImpostorBenchmark` (`TRUESIM_BENCHMARK=true`), RX 9070 XT, 1920 x 1080, 2026-11-09: 8,000 common-procedural trees
+(spruce, larch, beech, two variants each) over 1.2 km a side, the camera in a 40 m clearing in the middle, 4 m and
+40 m up, the sun with 4 cascades; each frame recorded, submitted and waited for (wall time, 120 frames after 30):
+
+| Trees as | Set up | Median (4 m / 40 m up) | Slowest tenth | Meshlets drawn |
+|---|---|---|---|---|
+| level 0 flat (before common-procedural 0.4) | 3.8 s | 177.1 / 128.4 ms | 183.5 / 182.2 ms | 1,981,674 / 2,252,637 |
+| level 1 flat | 12.1 s | 53.2 / 55.3 ms | 63.8 / 76.2 ms | 805,991 / 908,651 |
+| level 1 hierarchy (common-procedural's default) | 5.1 s | 44.2 / 45.8 ms | 67.6 / 73.9 ms | 655,180 / 734,076 |
+| level 0 hierarchy | 5.3 s | 76.1 / 76.3 ms | 83.0 / 82.9 ms | 1,148,926 / 1,308,077 |
+| level 1 hierarchy, impostors past 140 m | 5.0 s (6 bakes) | 13.2 / 12.9 ms | 13.8 / 13.8 ms | 64,032 / 65,240 |
+
+With impostors 647 trees are models and 7,784 impostors (the band holds both). The hierarchy from level 1 beats the
+one from level 0 (the near trees' detail costs more than it shows at 1080p), which is why it is common-procedural's
+default; impostors take the frame from 44 to 13 ms.
 
 ## Films
 

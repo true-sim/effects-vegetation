@@ -23,7 +23,8 @@ import java.util.List;
  * Vegetation as a plugin: the settings ({@link VegetationSettings}), the grass and plant material types registered with
  * the assets plugin's materials, and a world's vegetation kept each frame after the game's update: its components as
  * renderables ({@link VegetationSync}) and the wind and field hooks in its scene's geometry hook block
- * ({@link VegetationHooks}), detail falling with the distance from the viewer's camera.
+ * ({@link VegetationHooks}), detail falling with the distance from the viewer's camera; far plants of scatters with
+ * impostors baked through the engine ({@link com.truesim.effects.vegetation.ImpostorBaker}).
  *
  * <pre>{@code
  * app.use(new Rendering(), new Assets(), new VegetationPlugin());
@@ -43,6 +44,7 @@ public final class VegetationPlugin implements Plugin {
     private EngineSettings settings;
     private VegetationSync sync;
     private VegetationHooks hooks;
+    private com.truesim.effects.vegetation.ImpostorBaker baker;
     private Camera viewer;
     private float errorPixels = 1;
 
@@ -67,6 +69,7 @@ public final class VegetationPlugin implements Plugin {
             assets = startup.get(Assets.KEY);
             assets.resources().materials().register(VegetationGrass.TYPE);
             assets.resources().materials().register(VegetationPlant.TYPE);
+            assets.resources().materials().register(com.truesim.effects.vegetation.materials.VegetationImpostor.TYPE);
         }
     }
 
@@ -82,7 +85,8 @@ public final class VegetationPlugin implements Plugin {
         if (assets == null) {
             throw new IllegalStateException("The vegetation plugin sets up worlds from " + Stage.DEVICE + " on");
         }
-        sync = new VegetationSync(scene, assets.cache(), settings);
+        baker = new com.truesim.effects.vegetation.ImpostorBaker(rendering.device());
+        sync = new VegetationSync(scene, assets.cache(), settings).impostors(baker);
         hooks = new VegetationHooks(rendering.device(), gpu).viewer(camera, errorPixels);
         viewer = camera;
         return sync;
@@ -137,6 +141,10 @@ public final class VegetationPlugin implements Plugin {
         if (sync != null) {
             sync.close();
             sync = null;
+        }
+        if (baker != null) {
+            baker.close();
+            baker = null;
         }
     }
 }

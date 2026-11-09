@@ -110,6 +110,7 @@ final class Meadow implements AutoCloseable {
         materials = new Materials(device, 64);
         materials.register(com.truesim.effects.vegetation.materials.VegetationGrass.TYPE);
         materials.register(VegetationPlant.TYPE);
+        materials.register(com.truesim.effects.vegetation.materials.VegetationImpostor.TYPE);
         textures = new Textures(device);
         lights = new Lights(device, 4, 4);
         graph = new FrameGraph(device, 2);
@@ -225,6 +226,34 @@ final class Meadow implements AutoCloseable {
         return new int[] {mesh, first};
     }
 
+    /**
+     * Places plant {@code mesh} of {@code material} at (x, z) on the ground, turned {@code yaw}, scaled, casting shadows
+     * or not; its id.
+     */
+    int place(int mesh, int material, double x, double z, double yaw, float scale, boolean shadows) {
+        int id = nextId++;
+        scene.set(id, mesh, material, 1, shadows, x, ground.applyAsDouble(x, z), z, 0,
+            (float) Math.sin(yaw / 2), 0, (float) Math.cos(yaw / 2), scale, scale, scale);
+        return id;
+    }
+
+    /**
+     * An impostor of the baked {@code atlas} (frames a side, covering the sphere of {@code radius} about {@code center}),
+     * fading in over {@code fadeStart} to {@code fadeEnd} metres: its quad's mesh and its material.
+     */
+    int[] impostor(com.truesim.scene.render.TextureData atlas, int frames, float[] center, float radius,
+        float fadeStart, float fadeEnd) {
+        int slot = textures.data(atlas.width(), atlas.height(), atlas.texels());
+        int mesh = pool.add(Impostors.quad(center[0], center[1], center[2], radius));
+        int material = materials.add(new Material(com.truesim.effects.vegetation.materials.VegetationImpostorParameters
+            .DEFAULTS.withAtlas(slot).withFrames(frames).withCenter(new com.truesim.common.math.Vec3(center[0],
+                center[1], center[2])).withRadius(radius).withFadeStart(fadeStart).withFadeEnd(fadeEnd))
+            .displacement(Impostors.displacement(radius)).doubleSided(true)
+            .feature(DiffuseTransmissionParameters.DEFAULTS.withDiffuseTransmissionFactor(0.25f)
+                .withDiffuseTransmissionColorFactor(new Color(0.3f, 0.6f, 0.2f, 1))));
+        return new int[] {mesh, material};
+    }
+
     /** Shades by the visibility buffer ({@code visibility}) or forward shading, the view's lists sized for the meadow. */
     Meadow shade(boolean visibility, boolean occlusion) {
         return shade(visibility, occlusion, null);
@@ -236,7 +265,7 @@ final class Meadow implements AutoCloseable {
      */
     Meadow shade(boolean visibility, boolean occlusion, com.truesim.engine.graph.ExternalImage motion) {
         if (sky < 0) {
-            sky = textures.add(TextureFormat.RGBA16F, 1024, 512, Textures.GENERATE, sky(1024, 512, sun));
+            sky = textures.add(TextureFormat.RGBA16F, 1024, 512, Textures.GENERATE, skyTexels(1024, 512, sun));
         }
         Environment environment = Environment.panorama("meadow sky", sky, 1024);
         SceneGeometry geometry = SceneGeometry.meshlets(renderer);
@@ -345,7 +374,7 @@ final class Meadow implements AutoCloseable {
     }
 
     /** A clear day's panorama: a blue zenith to a pale horizon, a dim ground, the sun's disc and glow. */
-    private static MemorySegment sky(int width, int height, float[] sun) {
+    static MemorySegment skyTexels(int width, int height, float[] sun) {
         MemorySegment texels = Arena.ofAuto().allocate(8L * width * height);
         ValueLayout.OfShort half = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         for (int y = 0; y < height; y++) {

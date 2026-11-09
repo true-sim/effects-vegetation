@@ -3,6 +3,7 @@ package com.truesim.effects.vegetation.scene;
 import com.truesim.annotations.AllowAllocation;
 import com.truesim.effects.vegetation.GrassMaterials;
 import com.truesim.effects.vegetation.GrassPatch;
+import com.truesim.effects.vegetation.Impostors;
 import com.truesim.effects.vegetation.PlantMaterials;
 import com.truesim.effects.vegetation.materials.VegetationGrassParameters;
 import com.truesim.effects.vegetation.materials.VegetationPlantParameters;
@@ -11,6 +12,8 @@ import com.truesim.scene.assets.Generator;
 import com.truesim.scene.render.MaterialData;
 import com.truesim.engine.render.materials.DiffuseTransmissionParameters;
 import com.truesim.scene.render.RenderAssets;
+import com.truesim.scene.render.TextureData;
+import com.truesim.scene.assets.mesh.MeshData;
 import java.util.Objects;
 
 /**
@@ -31,24 +34,57 @@ public final class VegetationAssets {
         }
     }
 
-    /** A model's material as a plant's: the model's data, the sway's values, the strongest wind it is bounded for. */
-    public record PlantRecipe(MaterialData source, MaterialData.Values sway, float maxWind) {
+    /**
+     * A model's material as a plant's: the model's data, the sway's values, the strongest wind it is bounded for, and
+     * the band of metres from the viewer over which it fades into its impostor (0, 0: none).
+     */
+    public record PlantRecipe(MaterialData source, MaterialData.Values sway, float maxWind, float fadeStart,
+        float fadeEnd) {
 
         public PlantRecipe {
             Objects.requireNonNull(source, "source");
             Objects.requireNonNull(sway, "sway");
         }
+
+        /** A plant material that never fades. */
+        public PlantRecipe(MaterialData source, MaterialData.Values sway, float maxWind) {
+            this(source, sway, maxWind, 0, 0);
+        }
+    }
+
+    /**
+     * An impostor's material: its atlas (an {@link com.truesim.effects.vegetation.ImpostorBaker}'s), the grid's frames,
+     * the sphere it covers in mesh space, the band it fades in over, and whether it is lit through from behind as
+     * leaves are.
+     */
+    public record ImpostorRecipe(AssetRef<TextureData> atlas, int frames, float centerX, float centerY,
+        float centerZ, float radius, float fadeStart, float fadeEnd, boolean leaves) {
+
+        public ImpostorRecipe {
+            Objects.requireNonNull(atlas, "atlas");
+        }
+    }
+
+    /** An impostor's quad: the sphere it covers. */
+    public record QuadRecipe(float centerX, float centerY, float centerZ, float radius) {
     }
 
     /** Makes a grass material from its recipe. */
     public static final Generator<GrassRecipe, MaterialData> GRASS = (recipe, seed) -> grass(recipe);
     /** Makes a plant material from its recipe. */
     public static final Generator<PlantRecipe, MaterialData> PLANT = (recipe, seed) -> plant(recipe);
+    /** Makes an impostor material from its recipe. */
+    public static final Generator<ImpostorRecipe, MaterialData> IMPOSTOR = (recipe, seed) -> impostor(recipe);
+    /** Makes an impostor's quad. */
+    public static final Generator<QuadRecipe, MeshData> QUAD = (recipe, seed) -> Impostors.quad(recipe.centerX(),
+        recipe.centerY(), recipe.centerZ(), recipe.radius());
 
     /** The grass type's name. */
     public static final String GRASS_TYPE = "vegetationGrass";
     /** The plant type's name. */
     public static final String PLANT_TYPE = "vegetationPlant";
+    /** The impostor type's name. */
+    public static final String IMPOSTOR_TYPE = "vegetationImpostor";
 
     private VegetationAssets() {
     }
@@ -63,6 +99,31 @@ public final class VegetationAssets {
     @AllowAllocation("a reference made as plants are placed")
     public static AssetRef<MaterialData> plantRef(PlantRecipe recipe) {
         return AssetRef.generated(RenderAssets.MATERIAL, PLANT, recipe, 0);
+    }
+
+    /** The impostor material of {@code recipe} as an asset. */
+    @AllowAllocation("a reference made as an impostor is baked")
+    public static AssetRef<MaterialData> impostorRef(ImpostorRecipe recipe) {
+        return AssetRef.generated(RenderAssets.MATERIAL, IMPOSTOR, recipe, 0);
+    }
+
+    /** The quad of {@code recipe} as an asset. */
+    @AllowAllocation("a reference made as an impostor is baked")
+    public static AssetRef<MeshData> quadRef(QuadRecipe recipe) {
+        return AssetRef.generated(RenderAssets.MESH, QUAD, recipe, 0);
+    }
+
+    @AllowAllocation("made once per recipe, on a loader")
+    static MaterialData impostor(ImpostorRecipe r) {
+        MaterialData.Builder b = MaterialData.builder(IMPOSTOR_TYPE).texture("atlas", r.atlas())
+            .set("frames", r.frames()).set("center", r.centerX(), r.centerY(), r.centerZ()).set("radius", r.radius())
+            .set("fadeStart", r.fadeStart()).set("fadeEnd", r.fadeEnd())
+            .set("displacement", Impostors.displacement(r.radius())).doubleSided(true);
+        if (r.leaves()) {
+            b.feature(DiffuseTransmissionParameters.NAME, f -> f.set("diffuseTransmissionFactor", 0.3f)
+                .set("diffuseTransmissionColorFactor", 0.45f, 0.65f, 0.2f));
+        }
+        return b.build();
     }
 
     /** The grass parameters the bound is figured from: the values' or the defaults. */
@@ -116,6 +177,9 @@ public final class VegetationAssets {
                 .set("diffuseTransmissionColorFactor", 0.45f, 0.65f, 0.2f));
         }
         b.set("displacement", PlantMaterials.displacement(plantBounds(r.sway()), r.maxWind()));
+        if (r.fadeEnd() > r.fadeStart()) {
+            b.set("fadeStart", r.fadeStart()).set("fadeEnd", r.fadeEnd());
+        }
         return b.build();
     }
 

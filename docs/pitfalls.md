@@ -7,6 +7,18 @@ failure, a test that fails without the fix, or a reading of the code that shows 
 
 The engine's entries apply here too, displacement's above all.
 
+## Plants
+
+**Spawning a plant before its plant material loaded let the renderer change a material under instances.** The sync
+spawned plants as soon as the model's own materials had loaded, naming plant materials (generated assets) it never
+held: the renderer drew them as the default until they loaded, then set the displacing plant material in place. With
+a radius, plants coming and going let blocks of material ids go and be taken again; the engine remembered that
+instances had taken an id (engine#467), so setting the new block's material threw "Material N is drawn by instances
+and did not displace" (effects-vegetation#2).
+- Proof: `PlantChurnTest` (three scatters of 12 m radius, the viewer going back and forth) throws that exception
+  without the sync's change and passes with it, on engine 0.198.0.
+- Rule: the sync holds every generated material it hands to renderables and spawns only once they have loaded.
+
 ## Grass
 
 **A rank order that reversed the dither's bit pairs gathered the kept blades into tufts.** The template's ranks were

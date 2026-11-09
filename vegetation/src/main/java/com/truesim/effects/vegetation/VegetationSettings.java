@@ -48,6 +48,28 @@ public final class VegetationSettings {
     /** Plants of a scatter with a radius a frame takes in at most as the viewer moves: the rest follow later. */
     public static final Setting<Integer> PLANT_BUDGET = Setting.integer("vegetation.plants.budget", 256, 1, 1 << 20,
         "plants of a scatter with a radius a frame adds at most");
+    /**
+     * Metres from the viewer past which the plants of a scatter with impostors ({@link
+     * com.truesim.effects.vegetation.scene.PlantScatter#impostors}) start to become their octahedral impostors. Read
+     * as a scatter is placed.
+     */
+    public static final Setting<Float> IMPOSTOR_DISTANCE = Setting.decimal("vegetation.impostors.distance", 140f, 1f,
+        100_000f, "metres from the viewer where plants start to become impostors");
+    /**
+     * Metres over which a plant fades into its impostor past {@link #IMPOSTOR_DISTANCE}, dithered (the impostor whole
+     * from half way, the mesh gone at the end). Read as a scatter is placed.
+     */
+    public static final Setting<Float> IMPOSTOR_FADE = Setting.decimal("vegetation.impostors.fade", 30f, 0.5f,
+        10_000f, "metres over which plants fade into their impostors");
+    /** Views per side of an impostor's hemi-octahedral grid. Read as a scatter's impostor is baked. */
+    public static final Setting<Integer> IMPOSTOR_FRAMES = Setting.integer("vegetation.impostors.frames", 8, 2, 32,
+        "views per side of an impostor's octahedral grid");
+    /** Pixels per side of each impostor view. Read as a scatter's impostor is baked. */
+    public static final Setting<Integer> IMPOSTOR_RESOLUTION = Setting.integer("vegetation.impostors.resolution", 96,
+        8, 1024, "pixels per side of each impostor view");
+    /** Impostors a frame bakes at most (each waits for the GPU on the scene's thread): the rest in later frames. */
+    public static final Setting<Integer> IMPOSTOR_BUDGET = Setting.integer("vegetation.impostors.budget", 1, 1, 1024,
+        "impostors baked a frame at most");
     /** The strongest wind plants are bounded for, metres a second: their displacement's bound. */
     public static final Setting<Float> MAX_WIND = Setting.decimal("vegetation.wind.maxSpeed", 30f, 0f, 120f,
         "the strongest wind vegetation is bounded for, metres a second");
@@ -57,7 +79,8 @@ public final class VegetationSettings {
 
     /** Every setting, to register. */
     public static final List<Setting<?>> ALL = List.of(RADIUS, PATCH_SIZE, DENSITY, SEGMENTS, LEVELS, LOD_DISTANCE,
-        TEMPLATE_HEIGHT, RELIEF, MAX_WIDEN, PATCH_BUDGET, PLANT_BUDGET, MAX_WIND);
+        TEMPLATE_HEIGHT, RELIEF, MAX_WIDEN, PATCH_BUDGET, PLANT_BUDGET, IMPOSTOR_DISTANCE, IMPOSTOR_FADE,
+        IMPOSTOR_FRAMES, IMPOSTOR_RESOLUTION, IMPOSTOR_BUDGET, MAX_WIND);
 
     private VegetationSettings() {
     }
