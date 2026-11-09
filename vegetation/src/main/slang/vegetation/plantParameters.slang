@@ -15,7 +15,7 @@ import materials.metallicRoughness;
  * height; leaves `leafWeight` by height; the phase from the position; the color tints as metallic-roughness's does.
  * Lengths in mesh units; speeds are the wind's (vegetation.wind), metres a second.
  */
-[MaterialParameters(GEOMETRY_DISPLACE | FEATURE_DIFFUSE_TRANSMISSION | FEATURE_SPECULAR | FEATURE_SHEEN)]
+[MaterialParameters(GEOMETRY_DISPLACE | GEOMETRY_KEEP | FEATURE_DIFFUSE_TRANSMISSION | FEATURE_SPECULAR | FEATURE_SHEEN)]
 public struct VegetationPlantParameters
 {
     public MetallicRoughnessParameters base;
@@ -31,4 +31,6 @@ public struct VegetationPlantParameters
     public float leafFrequency = 3.5;    // cycles a second
     [Range(0, 1)] public float leafWeight = 0; // the leaves' weight where colors carry none: 1 for a leaves material
     public int windColors = 0;           // 1: the color and UV1 carry the weights, phase, pivot (common-procedural)
+    public float fadeStart = 0;          // metres from the viewer where it starts to fade into its impostor
+    public float fadeEnd = 0;            // and is gone (0, 0: never fades; fade.slang)
 };

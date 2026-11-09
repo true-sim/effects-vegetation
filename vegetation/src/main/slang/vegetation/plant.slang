@@ -8,6 +8,7 @@ import materials;
 import materials.metallicRoughness;
 __exported import vegetation.plantParameters;
 import vegetation.blade;
+import vegetation.fade;
 
 /** The wind hook's index in the shading hooks' dispatch, resolved when a shader links (hooks.properties). */
 extern static const uint RUN_HOOK_VEGETATION_WIND_INDEX;
@@ -25,6 +26,12 @@ public struct VegetationPlant : IMaterial
             input.color = float4(1, 1, 1, 1); // the color carries the wind's weights, not a tint
         }
         return evaluate(p.base, input);
+    }
+
+    /** Where it fades into its impostor (fadeStart to fadeEnd), its points thinned by the fade's dither. */
+    public override static bool keep(VegetationPlantParameters p, MaterialRef m, SurfaceInput in)
+    {
+        return fadeKept(in.world, in.uv, in.uv1, p.fadeStart, p.fadeEnd, false);
     }
 
     public override static Displaced displace(VegetationPlantParameters p, MaterialRef m, DisplacePoint in)

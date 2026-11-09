@@ -20,6 +20,12 @@ import java.util.Objects;
  * coming and going as it moves (thousands of small plants are never all in the scene). Trees take radius 0: all of
  * them, always, their detail by their meshes' cluster hierarchies.
  *
+ * <p><b>Forests</b> take {@code impostors}: past the settings' impostor distance each plant is an octahedral impostor
+ * baked from its model through the engine (one quad, {@code vegetationImpostor}), faded into it over the settings'
+ * band by a dither in every pass, so a far forest costs a quad a tree and nothing pops
+ * ({@link com.truesim.effects.vegetation.VegetationSettings#IMPOSTOR_DISTANCE}). The sync bakes it once the model
+ * has loaded, with the {@link com.truesim.effects.vegetation.ImpostorBaker} it is given.
+ *
  * @param model     what is placed
  * @param halfWidth metres either side of the node along world x
  * @param halfDepth metres either side along world z
@@ -32,16 +38,32 @@ import java.util.Objects;
  * @param seed      which of the possible scatters it is
  * @param sway      the plant type's values by field name (what it lacks keeps the defaults)
  * @param radius    metres from the viewer within which its plants are in the scene; 0: all of them, always
+ * @param impostors whether far plants are its model's octahedral impostor
  */
 public record PlantScatter(AssetRef<ModelData> model, double halfWidth, double halfDepth, double spacing,
     double minScale, double maxScale, double maxSlope, double minHeight, double maxHeight, long seed,
-    MaterialData.Values sway, double radius) {
+    MaterialData.Values sway, double radius, boolean impostors) {
+
+    /** A scatter without impostors. */
+    public PlantScatter(AssetRef<ModelData> model, double halfWidth, double halfDepth, double spacing,
+        double minScale, double maxScale, double maxSlope, double minHeight, double maxHeight, long seed,
+        MaterialData.Values sway, double radius) {
+        this(model, halfWidth, halfDepth, spacing, minScale, maxScale, maxSlope, minHeight, maxHeight, seed, sway,
+            radius, false);
+    }
 
     /** A scatter of plants always in the scene: trees. */
     public PlantScatter(AssetRef<ModelData> model, double halfWidth, double halfDepth, double spacing,
         double minScale, double maxScale, double maxSlope, double minHeight, double maxHeight, long seed,
         MaterialData.Values sway) {
-        this(model, halfWidth, halfDepth, spacing, minScale, maxScale, maxSlope, minHeight, maxHeight, seed, sway, 0);
+        this(model, halfWidth, halfDepth, spacing, minScale, maxScale, maxSlope, minHeight, maxHeight, seed, sway, 0,
+            false);
+    }
+
+    /** This scatter with impostors far away, or without. */
+    public PlantScatter withImpostors(boolean on) {
+        return new PlantScatter(model, halfWidth, halfDepth, spacing, minScale, maxScale, maxSlope, minHeight,
+            maxHeight, seed, sway, radius, on);
     }
 
     /** The component type. */

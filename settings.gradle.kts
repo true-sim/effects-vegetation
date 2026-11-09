@@ -25,6 +25,8 @@ project(":effects-vegetation").projectDir = file("vegetation")
 
 // Sibling checkouts are used as included builds when present (override with -Ptruesim.<repo>=<path>, or false).
 val truesimRepos = listOf("build-logic", "common-math", "common-state", "common-jobs", "common-graph", "scene", "engine")
+// Only fetched (the forest of the impostors' tests): never included from a sibling
+val fetchedRepos = listOf("common-procedural")
 for (repo in truesimRepos) {
     providers.gradleProperty("truesim.$repo").orElse("../$repo").get()
         .takeIf { file(it).isDirectory }?.let { includeBuild(it) }
@@ -32,7 +34,7 @@ for (repo in truesimRepos) {
 
 dependencyResolutionManagement {
     repositories {
-        for (repo in truesimRepos) {
+        for (repo in truesimRepos + fetchedRepos) {
             maven("https://maven.pkg.github.com/true-sim/$repo") {
                 credentials {
                     username = providers.gradleProperty("gpr.user").orElse(providers.environmentVariable("GITHUB_ACTOR")).orNull

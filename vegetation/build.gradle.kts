@@ -8,9 +8,11 @@ description = "Vegetation for true-sim: grass generated on the GPU from a parame
     "from scene components, all swaying in the wind through the engine's per-material displacement."
 
 dependencies {
-    api("com.truesim.engine:engine-scene:0.197.0") // the renderer's displacement and geometry hooks, the scene bridge
-    testImplementation(testFixtures("com.truesim.engine:engine-render:0.197.0")) // the headless renderer
+    api("com.truesim.engine:engine-scene:0.198.0") // the renderer's displacement and geometry hooks, the scene bridge
+    implementation("com.truesim.scene:scene-meshbuild:0.70.0") // the impostors' quad
+    testImplementation(testFixtures("com.truesim.engine:engine-render:0.198.0")) // the headless renderer
     testImplementation("com.truesim.scene:scene-meshbuild:0.70.0") // placeholder trees and the test ground
+    testImplementation("com.truesim.common:common-procedural-assets:0.4.0") // the forest of the impostors' tests
 }
 
 // The material records, the hooks' records and the push layouts of src/main/slang, as Java; the listing
