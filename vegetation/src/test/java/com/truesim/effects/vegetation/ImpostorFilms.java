@@ -4,10 +4,6 @@ import com.truesim.common.procedural.assets.ModelDetail;
 import com.truesim.engine.settings.EngineSettings;
 import com.truesim.engine.vulkan.VulkanDevice;
 import com.truesim.engine.vulkan.VulkanInstance;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,7 +17,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
  * The impostors' film, 1280 x 720 at 30 frames a second: a forest of 9,000 common-procedural trees, its trees past
  * 140 m octahedral impostors baked through the engine, faded in over 30 m. First a dolly towards the forest's edge
  * from 600 m away (every tree crossing the band), then the same dolly split down the middle: the left half every tree
- * its model, the right half impostors past 140 m. Frames go to {@code -Pfilms=<dir>}/impostors; encode with
+ * its model, the right half impostors past 140 m. Engine frames only: no captions, no overlay. Frames go to {@code -Pfilms=<dir>}/impostors; encode with
  * {@code ffmpeg -framerate 30 -i f%04d.png -c:v libx264 -pix_fmt yuv420p -crf 20 impostors.mp4}.
  */
 @EnabledIfEnvironmentVariable(named = "TRUESIM_FILMS", matches = "true")
@@ -51,7 +47,7 @@ class ImpostorFilms {
             for (int f = 0; f < dolly; f++) {
                 look(impostors, f / (double) dolly);
                 impostors.frame(1 / 30.0);
-                write(label(impostors.shot(), "impostors past 140 m, faded over 30 m", null), out, frame++);
+                write(impostors.shot(), out, frame++);
             }
             for (int f = 0; f < dolly; f++) {
                 double t = f / (double) dolly;
@@ -67,7 +63,7 @@ class ImpostorFilms {
                         split.setRGB(x, y, x < WIDTH / 2 ? left.getRGB(x, y) : right.getRGB(x, y));
                     }
                 }
-                write(label(split, "every tree its model", "impostors past 140 m"), out, frame++);
+                write(split, out, frame++);
             }
             System.out.printf(Locale.ROOT, "impostors film: %d frames, %d trees, %d bakes%n", frame, impostors.trees,
                 impostors.baker.bakes());
@@ -82,23 +78,6 @@ class ImpostorFilms {
         double s = t * t * (3 - 2 * t);
         double z = 500 + 600 - 560 * s;
         forest.look(0, 8, z, 6, -1.5, 55);
-    }
-
-    private static BufferedImage label(BufferedImage image, String left, String right) {
-        BufferedImage copy = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = copy.createGraphics();
-        g.drawImage(image, 0, 0, null);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 22));
-        g.setColor(Color.WHITE);
-        g.drawString(left, 24, 40);
-        if (right != null) {
-            g.drawString(right, WIDTH / 2 + 24, 40);
-            g.setColor(new Color(255, 255, 255, 160));
-            g.fillRect(WIDTH / 2 - 1, 0, 2, HEIGHT);
-        }
-        g.dispose();
-        return copy;
     }
 
     private static void write(BufferedImage image, Path folder, int frame) throws IOException {
